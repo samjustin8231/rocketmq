@@ -25,11 +25,11 @@ package org.apache.rocketmq.common.protocol.heartbeat;
  */
 public enum MessageModel {
     /**
-     * broadcast
+     * broadcast 广播模式，该模式下的某一个消费者组内的每个机器都能够消费，该模式用的比较少
      */
     BROADCASTING("BROADCASTING"),
     /**
-     * clustering
+     * clustering 集群模式，该模式下的某一个消费者组内只有一个机器消费
      */
     CLUSTERING("CLUSTERING");
 

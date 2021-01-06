@@ -278,6 +278,7 @@ public class MappedFile extends ReferenceResource {
                     if (writeBuffer != null || this.fileChannel.position() != 0) {
                         this.fileChannel.force(false);
                     } else {
+                        // 同步刷盘，最终通过 mappedByteBuffer.force() JDK NIO 的API，即强迫将内存数据刷入到磁盘
                         this.mappedByteBuffer.force();
                     }
                 } catch (Throwable e) {
