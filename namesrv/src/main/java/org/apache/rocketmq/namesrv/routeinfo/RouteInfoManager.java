@@ -45,13 +45,27 @@ import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 import org.apache.rocketmq.common.sysflag.TopicSysFlag;
 import org.apache.rocketmq.remoting.common.RemotingUtil;
 
+/**
+ * 路由管理器
+ */
 public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
+
+    /**
+     * broker name 与 brock data 的 Map
+     */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
+    /**
+     * 集群下的 broker name 的 Map
+     */
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+
+    /**
+     * 心跳数据结构 Map
+     */
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
     private final HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
@@ -99,6 +113,19 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
+    /**
+     * 通过 route manger 进行注册 broker
+     *
+     * @param clusterName
+     * @param brokerAddr
+     * @param brokerName
+     * @param brokerId
+     * @param haServerAddr
+     * @param topicConfigWrapper
+     * @param filterServerList
+     * @param channel
+     * @return
+     */
     public RegisterBrokerResult registerBroker(
         final String clusterName,
         final String brokerAddr,
@@ -111,6 +138,7 @@ public class RouteInfoManager {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
+                // 获取锁，进行注册，只能一个线程执行(其实就行操作 map)
                 this.lock.writeLock().lockInterruptibly();
 
                 Set<String> brokerNames = this.clusterAddrTable.get(clusterName);
@@ -123,6 +151,7 @@ public class RouteInfoManager {
                 boolean registerFirst = false;
 
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
+                // 第一次注册的时候，此处是 null
                 if (null == brokerData) {
                     registerFirst = true;
                     brokerData = new BrokerData(clusterName, brokerName, new HashMap<Long, String>());
@@ -157,6 +186,7 @@ public class RouteInfoManager {
                 }
 
                 BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr,
+                    // 基于当前时间戳构建 BrokerLiveInfo，刷新最新一次的心跳时间
                     new BrokerLiveInfo(
                         System.currentTimeMillis(),
                         topicConfigWrapper.getDataVersion(),
@@ -426,15 +456,23 @@ public class RouteInfoManager {
         return null;
     }
 
+    /**
+     * 扫描没有心跳的 broker
+     */
     public void scanNotActiveBroker() {
+        // 扫描 BrokerLiveInfo map（心跳的数据结构）
         Iterator<Entry<String, BrokerLiveInfo>> it = this.brokerLiveTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<String, BrokerLiveInfo> next = it.next();
+            // 获取该 broker 的最近一次心跳
             long last = next.getValue().getLastUpdateTimestamp();
+
+            // 超过一定时间(2min)没有心跳，则认为死掉了，从 map 中移除
             if ((last + BROKER_CHANNEL_EXPIRED_TIME) < System.currentTimeMillis()) {
                 RemotingUtil.closeChannel(next.getValue().getChannel());
                 it.remove();
                 log.warn("The broker channel expired, {} {}ms", next.getKey(), BROKER_CHANNEL_EXPIRED_TIME);
+                // 将 broker 从路由数据结构移除
                 this.onChannelDestroy(next.getKey(), next.getValue().getChannel());
             }
         }

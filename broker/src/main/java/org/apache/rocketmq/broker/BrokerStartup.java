@@ -58,9 +58,14 @@ public class BrokerStartup {
         start(createBrokerController(args));
     }
 
+    /**
+     * 启动 Broker Controller
+     * @param controller
+     * @return
+     */
     public static BrokerController start(BrokerController controller) {
         try {
-
+            // broker controller 启动
             controller.start();
 
             String tip = "The broker[" + controller.getBrokerConfig().getBrokerName() + ", "
@@ -211,6 +216,7 @@ public class BrokerStartup {
             MixAll.printObjectProperties(log, nettyClientConfig);
             MixAll.printObjectProperties(log, messageStoreConfig);
 
+            // 创建 Broker Controller
             final BrokerController controller = new BrokerController(
                 brokerConfig,
                 nettyServerConfig,
@@ -219,12 +225,14 @@ public class BrokerStartup {
             // remember all configs to prevent discard
             controller.getConfiguration().registerConfig(properties);
 
+            // Broker Controller 初始化
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
                 System.exit(-3);
             }
 
+            // 注册 jvm 关闭的钩子
             Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
                 private volatile boolean hasShutdown = false;
                 private AtomicInteger shutdownTimes = new AtomicInteger(0);

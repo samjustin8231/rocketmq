@@ -17,6 +17,10 @@
 package org.apache.rocketmq.remoting.netty;
 
 public class NettyServerConfig implements Cloneable {
+
+    /**
+     * 默认监听端口，代码里改成了 9876
+     */
     private int listenPort = 8888;
     private int serverWorkerThreads = 8;
     private int serverCallbackExecutorThreads = 0;

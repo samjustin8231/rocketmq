@@ -38,7 +38,9 @@ import org.apache.rocketmq.remoting.netty.NettyServerConfig;
 import org.apache.rocketmq.remoting.netty.TlsSystemConfig;
 import org.apache.rocketmq.srvutil.FileWatchService;
 
-
+/**
+ * Name Server 的核心组件，负责接收客户端的网络请求
+ */
 public class NamesrvController {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
@@ -60,6 +62,11 @@ public class NamesrvController {
     private Configuration configuration;
     private FileWatchService fileWatchService;
 
+    /**
+     * 创建 name server controller，此处仅仅是创建了对象并进行了赋值，还没有启用 Netty 服务器
+     * @param namesrvConfig
+     * @param nettyServerConfig
+     */
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
         this.namesrvConfig = namesrvConfig;
         this.nettyServerConfig = nettyServerConfig;
@@ -73,17 +80,26 @@ public class NamesrvController {
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
+    /**
+     * 初始化 Name Server Controller
+     * 内部会启动 netty server
+     * @return
+     */
     public boolean initialize() {
-
+        // 加载 key value 配置
         this.kvConfigManager.load();
 
+        // 构建 Netty 服务器
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
+        // netty 服务器工作线程池
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
+        // 注册 name server 的请求处理器
         this.registerProcessor();
 
+        // 每隔10s 定时扫描没有心跳的 broker
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -92,6 +108,7 @@ public class NamesrvController {
             }
         }, 5, 10, TimeUnit.SECONDS);
 
+        // 定时打印 kv 配置
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -143,16 +160,17 @@ public class NamesrvController {
 
     private void registerProcessor() {
         if (namesrvConfig.isClusterTest()) {
-
+            // 集群测试处理器
             this.remotingServer.registerDefaultProcessor(new ClusterTestRequestProcessor(this, namesrvConfig.getProductEnvName()),
                 this.remotingExecutor);
         } else {
-
+            // 注册请求处理器
             this.remotingServer.registerDefaultProcessor(new DefaultRequestProcessor(this), this.remotingExecutor);
         }
     }
 
     public void start() throws Exception {
+        // 启动 netty 服务器
         this.remotingServer.start();
 
         if (this.fileWatchService != null) {
@@ -160,9 +178,15 @@ public class NamesrvController {
         }
     }
 
+    /**
+     * Name server 关闭
+     */
     public void shutdown() {
+        // 释放 netty 服务器网络资源
         this.remotingServer.shutdown();
+        // 释放 netty 工作线程池
         this.remotingExecutor.shutdown();
+        // 释放 定时任务线程池
         this.scheduledExecutorService.shutdown();
 
         if (this.fileWatchService != null) {

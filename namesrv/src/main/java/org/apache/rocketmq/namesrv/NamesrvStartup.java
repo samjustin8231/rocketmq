@@ -54,8 +54,12 @@ public class NamesrvStartup {
     public static NamesrvController main0(String[] args) {
 
         try {
+            // 创建 name server controller
             NamesrvController controller = createNamesrvController(args);
+
+            // 启动 netty 服务器
             start(controller);
+
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
             log.info(tip);
             System.out.printf("%s%n", tip);
@@ -79,9 +83,10 @@ public class NamesrvStartup {
             return null;
         }
 
+        // 根据命令行参数与配置文件 构造 name server config 和 netty server config
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
-        nettyServerConfig.setListenPort(9876);
+        nettyServerConfig.setListenPort(9876); // netty 监听端口 9876
         if (commandLine.hasOption('c')) {
             String file = commandLine.getOptionValue('c');
             if (file != null) {
@@ -123,6 +128,7 @@ public class NamesrvStartup {
         MixAll.printObjectProperties(log, namesrvConfig);
         MixAll.printObjectProperties(log, nettyServerConfig);
 
+        // 根据 name server 和 netty server config 创建 name server controller
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
@@ -137,12 +143,14 @@ public class NamesrvStartup {
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
+        // 初始化 Name Server Controller
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
+        // jvm 关闭时钩子，关闭 netty server
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -151,6 +159,7 @@ public class NamesrvStartup {
             }
         }));
 
+        // 启动 netty 服务器
         controller.start();
 
         return controller;
